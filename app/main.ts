@@ -6,6 +6,10 @@ const statusTextByCode: {
     200: 'OK',
     404: 'Not Found',
 };
+const commonHeaders = {
+    CONTENT_TYPE: 'Content-Type',
+    CONTENT_LENGTH: 'Content-Length',
+} as const;
 
 type Handler = (req: Request) => PromiseLike<Response> | Response;
 
@@ -15,10 +19,16 @@ const handler: Handler = async (req: Request) => {
         return new Response("", { status: 405 });
     }
     const url = new URL(req.url);
-    if (url.pathname !== "/") {
-        return new Response("", { status: 404 });
+    if (url.pathname === "/") {
+        return new Response("", { status: 200 });
     }
-    return new Response("", { status: 200 });
+    if (url.pathname.startsWith("/echo/")) {
+        const text = url.pathname.slice("/echo/".length);
+        return new Response(text, {
+            status: 200,
+        });
+    }
+    return new Response("", { status: 404 });
 };
 
 const server = net.createServer(async (socket) => {
@@ -73,9 +83,16 @@ const server = net.createServer(async (socket) => {
     const res = await handler(req);
     const statusCode = res.status;
     const statusText = res.statusText || statusTextByCode[statusCode] || '';
+    const body = await res.arrayBuffer();
+    if (!res.headers.has(commonHeaders.CONTENT_TYPE)) {
+        res.headers.set(commonHeaders.CONTENT_TYPE, 'text/plain');
+    }
+    if (!res.headers.has(commonHeaders.CONTENT_LENGTH)) {
+        res.headers.set(commonHeaders.CONTENT_LENGTH, body.byteLength + "");
+    }
     const headers = [...res.headers.entries()].map(([key, value]) => `${key}: ${value}\r\n`).join('');
-    const body = await res.text();
-    socket.write(`${httpVersion} ${statusCode} ${statusText}\r\n${headers}\r\n${body}`);
+    socket.write(`${httpVersion} ${statusCode} ${statusText}\r\n${headers}\r\n`);
+    socket.write(new Uint8Array(body));
     socket.end();
 });
 
