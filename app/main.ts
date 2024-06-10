@@ -19,15 +19,25 @@ const handler: Handler = async (req: Request) => {
         return new Response("", { status: 405 });
     }
     const url = new URL(req.url);
+    // curl -v http://localhost:4221/
     if (url.pathname === "/") {
         return new Response("", { status: 200 });
     }
+    // curl -v http://localhost:4221/echo/abcdefg
     if (url.pathname.startsWith("/echo/")) {
         const text = url.pathname.slice("/echo/".length);
         return new Response(text, {
             status: 200,
         });
     }
+    // curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent
+    if (url.pathname === "/user-agent") {
+        const userAgent = req.headers.get("User-Agent");
+        return new Response(userAgent || "", {
+            status: 200,
+        });
+    }
+    // curl -v http://localhost:4221/404
     return new Response("", { status: 404 });
 };
 
