@@ -3,7 +3,8 @@
   "description": "Build your own HTTP Server challenge, from CodeCrafters",
   "type": "module",
   "scripts": {
-    "dev": "bun run app/main.ts"
+    "dev": "bun run --watch app/main.ts",
+    "test": "curl -v http://localhost:4221"
   },
   "dependencies": {
     "async": "^3.2.0"
