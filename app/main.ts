@@ -56,6 +56,9 @@ const handler: Handler = async (req: Request) => {
         const body = await file.text();
         return new Response(body, {
             status: 200,
+            headers: {
+                'content-type': 'application/octet-stream',
+            }
         });
 
     }
