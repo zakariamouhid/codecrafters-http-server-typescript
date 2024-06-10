@@ -1,4 +1,6 @@
 import * as net from 'net';
+import Bun from 'bun';
+import path from 'path';
 
 const statusTextByCode: {
     [code: number]: string;
@@ -10,6 +12,8 @@ const commonHeaders = {
     CONTENT_TYPE: 'Content-Type',
     CONTENT_LENGTH: 'Content-Length',
 } as const;
+
+const tmpDir = process.argv.find((arg, i, args) => args[i - 1] === '--directory') || './tmp';
 
 type Handler = (req: Request) => PromiseLike<Response> | Response;
 
@@ -36,6 +40,24 @@ const handler: Handler = async (req: Request) => {
         return new Response(userAgent || "", {
             status: 200,
         });
+    }
+    // echo -n 'Hello, World!' > /tmp/foo
+    // curl -i http://localhost:4221/files/foo
+    // curl -i http://localhost:4221/files/non_existant_file
+    if (url.pathname.startsWith("/files/")) {
+        const filename = url.pathname.slice("/files/".length);
+        if (filename.includes("/") || filename.includes("\\")) {
+            return new Response("", { status: 404 });
+        }
+        const file = Bun.file(path.resolve(tmpDir, filename));
+        if (!await file.exists()) {
+            return new Response("", { status: 404 });
+        }
+        const body = await file.text();
+        return new Response(body, {
+            status: 200,
+        });
+
     }
     // curl -v http://localhost:4221/404
     return new Response("", { status: 404 });
