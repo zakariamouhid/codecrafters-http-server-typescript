@@ -52,6 +52,7 @@ const handler: Handler = async (req: Request) => {
         }
         const file = Bun.file(path.resolve(tmpDir, filename));
         if (!await file.exists()) {
+            console.log('file not found', filename, path.resolve(tmpDir, filename));
             return new Response("", { status: 404 });
         }
         const body = await file.text();
@@ -122,7 +123,11 @@ const server = net.createServer(async (socket) => {
                     }
                 }
 
-                if (typeof head !== "undefined" && typeof contentLength !== "undefined" && body.length >= contentLength) {
+                if (typeof head !== "undefined" && (
+                    typeof contentLength === "undefined"
+                        ? endOfHeaders
+                        : body.length >= contentLength
+                )) {
                     resolve({
                         head,
                         rawHeaders,
