@@ -29,11 +29,23 @@ const handler: Handler = async (req: Request) => {
         return new Response("", { status: 200 });
     }
     // curl -v http://localhost:4221/echo/abcdefg
+    // curl -v --header "Accept-Encoding: gzip" http://localhost:4221/echo/foo
     if (url.pathname.startsWith("/echo/")) {
         const text = url.pathname.slice("/echo/".length);
-        return new Response(text, {
-            status: 200,
-        });
+        const acceptEncoding = req.headers.get("Accept-Encoding");
+        if (acceptEncoding === "gzip") {
+            const compressed = Bun.gzipSync(text);
+            return new Response(compressed, {
+                status: 200,
+                headers: {
+                    'Content-Encoding': acceptEncoding
+                }
+            });
+        } else if (acceptEncoding) {
+            return new Response("", { status: 406 });
+        } else {
+            return new Response(text, { status: 200 });
+        }
     }
     // curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent
     if (url.pathname === "/user-agent") {
