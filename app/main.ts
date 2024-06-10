@@ -29,21 +29,10 @@ const handler: Handler = async (req: Request) => {
         return new Response("", { status: 200 });
     }
     // curl -v http://localhost:4221/echo/abcdefg
-    // curl -v --header "Accept-Encoding: gzip" http://localhost:4221/echo/foo
+    // curl -v --header "Accept-Encoding: encoding-1, gzip, encoding-2" http://localhost:4221/echo/foo
     if (url.pathname.startsWith("/echo/")) {
         const text = url.pathname.slice("/echo/".length);
-        const acceptEncoding = req.headers.get("Accept-Encoding");
-        if (acceptEncoding === "gzip") {
-            const compressed = Bun.gzipSync(text);
-            return new Response(compressed, {
-                status: 200,
-                headers: {
-                    'Content-Encoding': acceptEncoding
-                }
-            });
-        } else {
-            return new Response(text, { status: 200 });
-        }
+        return new Response(text, { status: 200 });
     }
     // curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent
     if (url.pathname === "/user-agent") {
@@ -175,7 +164,13 @@ const server = net.createServer(async (socket) => {
         headers: requestHeaders,
         body: requestBody,
     });
-    const res = await handler(req);
+    let res = await handler(req);
+    const acceptEncoding = req.headers.get("Accept-Encoding")?.split(",").map(x => x.trim());
+    if (acceptEncoding?.includes("gzip")) {
+        const compressed = Bun.gzipSync(new Uint8Array(await res.arrayBuffer()));
+        res.headers.set("Content-Encoding", "gzip");
+        res = new Response(compressed, res);
+    }
     const statusCode = res.status;
     const statusText = res.statusText || statusTextByCode[statusCode] || '';
     const body = await res.arrayBuffer();
