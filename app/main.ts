@@ -1,17 +1,83 @@
 import * as net from 'net';
 
-const server = net.createServer((socket) => {
-    const httpVersion = '1.1';
-    const statusCode = 200;
-    const statusReason = 'OK';
-    const headers = "";
-    const body = "";
-    socket.write(`HTTP/${httpVersion} ${statusCode} ${statusReason}\r\n${headers}\r\n${body}`);
+const statusTextByCode: {
+    [code: number]: string;
+} = {
+    200: 'OK',
+    404: 'Not Found',
+};
+
+type Handler = (req: Request) => PromiseLike<Response> | Response;
+
+const handler: Handler = async (req: Request) => {
+    console.log('req.method', req.method, 'req.url', req.url);
+    if (req.method !== "GET") {
+        return new Response("", { status: 405 });
+    }
+    const url = new URL(req.url);
+    if (url.pathname !== "/") {
+        return new Response("", { status: 404 });
+    }
+    return new Response("", { status: 200 });
+};
+
+const server = net.createServer(async (socket) => {
+    console.log('got connection from', socket.remoteAddress, socket.remotePort);
+    const lines = await new Promise<string[]>((resolve) => {
+        let data = "";
+        let cursor = 0;
+        const lines: string[] = [];
+        socket.on('data', (chunk) => {
+            // chunk = "GET /abcdefg HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/7.84.0\r\nAccept: */*\r\n\r\n"
+            data += chunk.toString();
+            while (cursor < data.length) {
+                const end = data.indexOf('\r\n', cursor);
+                if (end === -1) {
+                    break;
+                }
+                const line = data.slice(cursor, end);
+                lines.push(line);
+                cursor = end + 2;
+                if (line === '') {
+                    resolve(lines);
+                }
+            }
+        });
+    });
+    const head = lines[0];
+    const [method, requestPath, httpVersion] = head.split(' ');
+    if (['GET', 'POST', 'PUT', 'DELETE'].indexOf(method) === -1) {
+        socket.write('HTTP/1.1 405 Method Not Allowed\r\n\r\n');
+        socket.end();
+        return;
+    }
+    if (httpVersion !== 'HTTP/1.1') {
+        socket.write('HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n');
+        socket.end();
+        return;
+    }
+    const lastHeaderIndex = lines.indexOf('');
+    const rawHeaders = lines.slice(1, lastHeaderIndex);
+    // console.log('rawHeaders', rawHeaders);
+    // console.log('data', lines);
+    const url = new URL(`http://${socket.localAddress}:${socket.localPort}${requestPath}`);
+    const requestHeaders = new Headers();
+    for (const rawHeader of rawHeaders) {
+        const [key, value] = rawHeader.split(': ');
+        requestHeaders.set(key, value);
+    }
+    const req = new Request(url, {
+        method,
+        headers: requestHeaders,
+    });
+    const res = await handler(req);
+    const statusCode = res.status;
+    const statusText = res.statusText || statusTextByCode[statusCode] || '';
+    const headers = [...res.headers.entries()].map(([key, value]) => `${key}: ${value}\r\n`).join('');
+    const body = await res.text();
+    socket.write(`${httpVersion} ${statusCode} ${statusText}\r\n${headers}\r\n${body}`);
     socket.end();
 });
-
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-console.log("Logs from your program will appear here!");
 
 // Uncomment this to pass the first stage
 server.listen(4221, 'localhost', () => {
