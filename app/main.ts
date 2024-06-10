@@ -41,8 +41,6 @@ const handler: Handler = async (req: Request) => {
                     'Content-Encoding': acceptEncoding
                 }
             });
-        } else if (acceptEncoding) {
-            return new Response("", { status: 406 });
         } else {
             return new Response(text, { status: 200 });
         }
